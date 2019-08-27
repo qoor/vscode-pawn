@@ -1,0 +1,93 @@
+{
+	"name": "pawn",
+	"displayName": "PAWN Language for Visual Studio Code",
+	"description": "Visual Studio Code에서 PAWN Language 문법 강조를 사용할 수 있습니다.",
+	"repository": {
+		"url": "https://github.com/zndn1997/vscode-pawn.git"
+	},
+	"author": "Qoo",
+	"version": "0.0.1",
+	"publisher": "Qoo",
+	"categories": [
+		"Programming Languages"
+	],
+	"engines": {
+		"vscode": "^1.23.0"
+	},
+	"activationEvents": [
+		"onLanguage:pawn"
+	],
+	"main": "./client/out/extension",
+	"contributes": {
+		"configuration": {
+			"type": "object",
+			"title": "PAWN",
+			"properties": {
+				"pawn.compilerPath": {
+					"type": "string",
+					"default": "",
+					"description": "\"pawno\" Folder path"
+				},
+				"pawn.compileOptions": {
+					"type": "array",
+					"default": [
+						"-d1",
+						"-O1",
+						"-(",
+						"-;"
+					],
+					"description": "Compile option arguments"
+				}
+			}
+		},
+		"commands": [
+			{
+				"command": "pawn.compile",
+				"title": "PAWN Compile"
+			}
+		],
+		"languages": [
+			{
+				"id": "pawn",
+				"extensions": [
+					".pwn",
+					".inc",
+					".p"
+				],
+				"aliases": [
+					"pawn",
+					"PAWN",
+					"Pawn"
+				],
+				"configuration": "./language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "pawn",
+				"scopeName": "source.pawn",
+				"path": "./syntaxes/pawn.json"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "pawn.compile",
+				"key": "F5"
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "cd client && npm run update-vscode && cd .. && npm run compile",
+		"compile": "tsc -b",
+		"watch": "tsc -b -w",
+		"postinstall": "cd client && npm install && cd ../server && npm install && cd ..",
+		"test": "sh ./scripts/e2e.sh"
+	},
+	"devDependencies": {
+		"@types/mocha": "^5.2.7",
+		"@types/node": "^8.10.52",
+		"tslint": "^5.19.0",
+		"typescript": "^3.5.3",
+		"vscode": "^1.1.36"
+	}
+}

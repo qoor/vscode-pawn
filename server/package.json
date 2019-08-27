@@ -1,0 +1,13 @@
+{
+	"name": "pawn-language-server",
+	"description": "PAWN Language Server",
+	"version": "0.0.1",
+	"author": "Qoo",
+	"engines": {
+		"node": "*"
+	},
+	"dependencies": {
+		"vscode-languageserver": "^4.1.3"
+	},
+	"scripts": {}
+}
