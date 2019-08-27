@@ -1,10 +1,15 @@
 {
 	"name": "pawn",
 	"displayName": "PAWN Language for Visual Studio Code",
-	"description": "Visual Studio Code에서 PAWN Language 문법 강조를 사용할 수 있습니다.",
+	"description": "An extension for VS Code which provides support for the PAWN language.",
+	"bugs": {
+		"url": "https://github.com/zndn1997/vscode-pawn/issues"
+	},
 	"repository": {
+		"type": "git",
 		"url": "https://github.com/zndn1997/vscode-pawn.git"
 	},
+	"icon": "pawn.ico",
 	"author": "Qoo",
 	"version": "0.0.1",
 	"publisher": "Qoo",
@@ -16,6 +21,12 @@
 	},
 	"activationEvents": [
 		"onLanguage:pawn"
+	],
+	"keywords": [
+		"Pawn",
+		"SA-MP",
+		"SAMP",
+		"pawno"
 	],
 	"main": "./client/out/extension",
 	"contributes": {
