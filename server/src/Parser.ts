@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { execFile, spawn } from "child_process";
 import { Grammar } from "./Grammar";
-import { ErrorManager } from "./ErrorManager";
+import { ErrorManager, PawnError } from "./ErrorManager";
 import { ParserManager } from "./ParserManager";
 import { getConnection, isHaveConfigurationCapability, globalSettings } from "./server";
 import { Connection } from 'vscode-languageserver';
@@ -82,9 +82,9 @@ export class Parser
 		this.parserProgressCount = 0;
 		this.iAmWorkspaceParser = isWorkspaceParser;
 
-		if (isWorkspaceParser && this.mainPath[this.mainPath.length - 1] != path.sep) { // -i include option require path seperator at path end
+		/*if (isWorkspaceParser && this.mainPath[this.mainPath.length - 1] != path.sep) { // -i include option require path seperator at path end
 			this.mainPath += path.sep;
-		}
+		}*/
 	}
 
 	async run(): Promise<void> {
@@ -98,14 +98,17 @@ export class Parser
 			return;
 		}
 
-		let args: string[] = [ (this.iAmWorkspaceParser) ? this.mainPath + this.mainFile : this.mainPath ];
+		let args: string[] = [ (this.iAmWorkspaceParser) ? path.join(this.mainPath, this.mainFile) : this.mainPath ];
 
 		if (globalSettings.compilerPath != globalSettings.parserPath) {
 			args.push("-i" + path.join(globalSettings.compilerPath, "include") + path.sep);
 		}
 		
 		args = args.concat(globalSettings.compileOptions!);
-		args.push("-i" + this.mainPath);
+
+		/*if (this.iAmWorkspaceParser) {
+			args.push("-i" + this.mainPath + path.sep);
+		}*/
 
 		++this.parserProgressCount;
 
@@ -137,7 +140,8 @@ export class Parser
 
 			splitedData.forEach((value: string) => {
 				if (value.length > 0) {
-					let result: ParserResult = { type: "", contents: new Object() };
+					let result: ParserResult | undefined = undefined;
+
 					try {
 						result = JSON.parse(value.replace(/\bInfinity\b/g, "0.0"));
 					} catch (e) {
@@ -145,22 +149,24 @@ export class Parser
 						connection.console.log(e.message);
 					}
 
-					if (result.type == "error") {
-						this.errorManager.addError(result.contents);
-					} else if (result.type == "files") {
-						this.grammar.addFiles(result.contents);
-					} else if (result.type == "constants") {
-						this.grammar.addConstantExpressions(result.contents);
-					} else if (result.type == "tags") {
-						this.grammar.addTags(result.contents);
-					} else if (result.type == "enumerators") {
-						this.grammar.addEnumerators(result.contents);
-					} else if (result.type == "variables") {
-						this.grammar.addVariables(result.contents);
-					} else if (result.type == "functions") {
-						this.grammar.addFunctions(result.contents);
-					} else if (result.type == "substitutes") {
-						this.grammar.addSubstitutes(result.contents);
+					if (result !== undefined) {
+						if (result.type == "error") {
+							this.errorManager.addError(result.contents);
+						} else if (result.type == "files") {
+							this.grammar.addFiles(result.contents);
+						} else if (result.type == "constants") {
+							this.grammar.addConstantExpressions(result.contents);
+						} else if (result.type == "tags") {
+							this.grammar.addTags(result.contents);
+						} else if (result.type == "enumerators") {
+							this.grammar.addEnumerators(result.contents);
+						} else if (result.type == "variables") {
+							this.grammar.addVariables(result.contents);
+						} else if (result.type == "functions") {
+							this.grammar.addFunctions(result.contents);
+						} else if (result.type == "substitutes") {
+							this.grammar.addSubstitutes(result.contents);
+						}
 					}
 				}
 			});
@@ -170,6 +176,11 @@ export class Parser
 
 			this.grammar.makeDetailAll();
 
+			connection.console.log("");
+			this.errorManager.errors.forEach((error: PawnError) => {
+				connection.console.log(error.error_detail);
+			});
+
 			this.stdoutBuffer = "";
 
 			if (--this.parserProgressCount < 0) {
@@ -177,6 +188,10 @@ export class Parser
 			}
 
 			connection.console.log("Path \"" + this.mainPath + "\" Parsing end.");
+
+			if (this.isWorkspaceParser()) {
+				ParserManager.updateGarbageCollect(this);
+			}
 		});
 	}
 

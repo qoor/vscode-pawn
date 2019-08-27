@@ -128,12 +128,12 @@ connection.onRequest("compile_request", (param: string) => {
 	compile(param);
 });
 
-/*connection.onRequest((method: string, ...params: any[]) => {
+connection.onRequest((method: string, ...params: any[]) => {
 	if (method == "compile_request") {
 		connection.console.log("Received compile request. params: " + params[0].document);
 		//connection.sendRequest("compile", globalSettings);
 	}
-});*/
+});
 
 /*connection.onDidOpenTextDocument((params: DidOpenTextDocumentParams): void => {
 	let document = uriToFilePath(params.textDocument.uri)!;
@@ -163,9 +163,10 @@ connection.onDidCloseTextDocument((params: DidCloseTextDocumentParams): void => 
 
 documents.onDidOpen((e: TextDocumentChangeEvent) => {
 	const documentPath = uriToFilePath(e.document.uri)!;
-	const parser: Parser | undefined = ParserManager.getParser(documentPath);
 
 	connection.console.log(documentPath + " has opened.");
+
+	const parser: Parser | undefined = ParserManager.getParser(documentPath);
 	
 	if (parser !== undefined && !parser.isWorkspaceParser()) {
 		parser.run();
@@ -173,14 +174,18 @@ documents.onDidOpen((e: TextDocumentChangeEvent) => {
 });
 
 documents.onDidSave((e: TextDocumentChangeEvent) => {
-	//let document = e.document.uri.slice(e.document.uri.indexOf("file://"));
 	const documentPath = uriToFilePath(e.document.uri)!;
+
+	connection.console.log(documentPath + " has saved.");
+
 	const parser: Parser | undefined = ParserManager.getParser(documentPath);
 
-	//connection.console.log(documentPath + " has saved.");
-
 	if (parser !== undefined) {
-		parser.run();
+		parser.run().then(() => {
+			if (parser.isWorkspaceParser()) {
+				ParserManager.updateGarbageCollect(parser);
+			}
+		});
 	}
 });
 
@@ -201,13 +206,14 @@ documents.onDidChangeContent((e: TextDocumentChangeEvent) => {
 
 documents.onDidClose(e => {
 	const documentPath = uriToFilePath(e.document.uri)!;
+
+	connection.console.log(documentPath + " has closed.");
+
 	const parser: Parser | undefined = ParserManager.getParser(documentPath, false);
 
 	if (parser !== undefined && !parser.isWorkspaceParser()) {
 		ParserManager.removeParser(documentPath);
 	}
-
-	connection.console.log(document + " has closed.");
 });
 
 connection.onDidChangeWatchedFiles((params: DidChangeWatchedFilesParams) => {
@@ -580,7 +586,6 @@ export function getConnection() {
 function compile(uri: string): void {
 	const filePath: string = uriToFilePath(uri)!;
 	let parser: Parser | undefined = ParserManager.getParser(filePath);
-	//const isInWorkspace: boolean = (ParserManager.workspaces !== undefined && ParserManager.getCurrentPath(filePath) == ParserManager.workspaces);
 
 	if (parser === undefined) {
 		return;

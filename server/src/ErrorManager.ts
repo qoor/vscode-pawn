@@ -9,7 +9,7 @@ enum eErrorType {
 	WARNING
 }
 
-interface PawnError {
+export interface PawnError {
 	file_name: string;
 	error_id: number;
 	first_line: number;
@@ -89,23 +89,23 @@ export class ErrorManager {
 	private makeDetail(errorData: PawnError) {
 		let detail: string = path.basename(errorData.file_name);
 
-		detail += "\nLine: (";
+		detail = errorData.file_name;
 
-		if (errorData.first_line > 0) {
-			detail += errorData.first_line + "---";
+		if (errorData.first_line >= 0) {
+			detail += '(' + errorData.first_line + " -- " + errorData.last_line + " : ";
+		} else {
+			detail += '(' + errorData.last_line + ')' + " : ";
 		}
-			
-		detail += errorData.last_line + ')\n';
 
 		if (errorData.error_type == eErrorType.ERROR) {
-			detail += "Error";
+			detail += "error ";
 		} else if (errorData.error_type == eErrorType.WARNING) {
-			detail += "Warning";
-		} else {
-			detail += "Fatal Error";
+			detail += "warning ";
+		} else if (errorData.error_type == eErrorType.FATAL_ERROR) {
+			detail += "fatal error ";
 		}
 
-		detail += " (" + errorData.error_id + "): " + errorData.error_message;
+		detail += errorData.error_id.toString(3) + ": " + errorData.error_message.replace(/[\n]/g, '');
 
 		errorData.error_detail = detail;
 	}

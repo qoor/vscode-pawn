@@ -1,7 +1,7 @@
 import * as path from "path";
 import * as fs from "fs";
 import { Connection, WorkspaceFolder } from 'vscode-languageserver';
-import { getConnection, isHaveWorkspaceFolderCapability } from './server';
+import { isHaveWorkspaceFolderCapability } from './server';
 import { Parser } from "./Parser";
 import { PawnFile } from './Grammar';
 import * as assert from 'assert';
@@ -11,6 +11,7 @@ export class ParserManager {
 	static connection: Connection;
 	private static parsers: Map<string, Parser> = new Map();
 	private static workspaces: Map<string, WorkspaceFolder> = new Map();
+	private static workspacesParserInitalized: boolean = false;
 
 	// ParserManager should create workspaces parser //
 	// Because if parser not found while getParser() call, getParser() create parser automatly every file path. //
@@ -24,8 +25,10 @@ export class ParserManager {
 			ParserManager.parsers.set(key, workspaceParser);
 			workspaceParser.setMainFile(ParserManager.getWorkspaceDefaultMainFile(key)); // Automatly parser run
 
-			ParserManager.workspaces.set(workspace.uri, workspace);
+			ParserManager.workspaces.set(key, workspace);
 		});
+
+		ParserManager.workspacesParserInitalized = true;
 	}
 	// //
 
@@ -72,6 +75,18 @@ export class ParserManager {
 	}
 
 	static getParser(currentPath: string, autoCreate: boolean = true): Parser | undefined {
+		for (let workspace of ParserManager.workspaces.keys()) {
+			if (currentPath.indexOf(workspace) == -1) {
+				continue;
+			}
+
+			const workspaceParser: Parser = ParserManager.parsers.get(workspace)!;
+
+			if (workspaceParser.isInProgress()) {
+				return undefined;
+			}
+		}
+
 		const key: string = ParserManager.getCurrentPath(currentPath);
 		let parser: Parser | undefined = ParserManager.parsers.get(key);
 
@@ -87,58 +102,55 @@ export class ParserManager {
 
 	// Search parser key of file path //
 	static getCurrentPath(originalPath: string): string {
-		let currentPath: string = originalPath;
-
 		if (!isHaveWorkspaceFolderCapability()) {
-			return currentPath;
+			return originalPath;
 		}
-
-		let isWorkspaceMain: boolean = false;
 
 		// First, Check is file workspace main file? //
-		for (let workspace of ParserManager.workspaces.values()) {
-			const workspacePath: string = uriToFilePath(workspace.uri)!;
-			const workspaceParser: Parser | undefined = ParserManager.parsers.get(workspacePath);
+		for (let workspace of ParserManager.workspaces.keys()) {
+			const workspaceParser: Parser = ParserManager.parsers.get(workspace)!;
 
-			if (workspaceParser !== undefined) {
-				// If originalPath is workspace path or originalPath is workspace main file //
-				const directory: string = path.dirname(originalPath);
+			// If originalPath is workspace path or originalPath is workspace main file //
+			const directory: string = path.dirname(originalPath);
 
-				if (originalPath == workspacePath || (directory == workspacePath && path.basename(originalPath) == workspaceParser.getMainFile())) {
-					isWorkspaceMain = true;
-					currentPath = workspacePath;
-					break;
-				}
-				// //
+			if (originalPath == workspace || (directory == workspace && path.basename(originalPath) == workspaceParser.getMainFile())) {
+				return workspace;
 			}
+			// //
 		}
 		// //
+
+		let currentPath: string = originalPath;
 
 		// If file is not workspace main file, search workspaces include files //
-		if (!isWorkspaceMain) {
-			for (let workspace of ParserManager.workspaces.values()) {
-				const workspacePath: string = uriToFilePath(workspace.uri)!;
-				const workspaceParser: Parser | undefined = ParserManager.getParser(workspacePath);
-				let isIncludeFile: boolean = false;
+		for (let workspace of ParserManager.workspaces.keys()) {
+			// Ex) originalPath: C:\\test\\1\\2\\3 and workpsace: C:\\test is true. But false if originalPath is C:\\Windows\\notepad.exe //
+			// Workspace parser only share that path //
+			if (originalPath.indexOf(workspace) == -1) { 
+				continue;
+			}
+			// //
 
-				if (workspaceParser !== undefined) {
-					workspaceParser.grammar.files.some((includeFile: PawnFile) => {
-						if (includeFile.file_path == originalPath) {
-							isIncludeFile = true;
-							currentPath = workspacePath;
-							return true;
-						}
-					});
+			const workspaceParser: Parser = ParserManager.parsers.get(workspace)!;
+			let isIncludeFile: boolean = false;
+
+			workspaceParser.grammar.files.some((includeFile: PawnFile) => {
+				if (includeFile.file_path == originalPath) {
+					isIncludeFile = true;
+					currentPath = workspace;
+					return true;
 				}
 
-				if (isIncludeFile) {
-					break;
-				}
+				return false;
+			});
+
+			if (isIncludeFile) {
+				return currentPath;
 			}
 		}
 		// //
 
-		return currentPath;
+		return originalPath;
 	}
 	// //
 
@@ -155,11 +167,25 @@ export class ParserManager {
 		return ParserManager.parsers.values();
 	}
 
-	/*static setWorkspaceMainFile(fileName: string) {
-		if (ParserManager.workspaceRoot === undefined) {
+	static isWorkspaceInitialized(): boolean {
+		return ParserManager.workspacesParserInitalized;
+	}
+
+	static updateGarbageCollect(workspaceParser: Parser): void {
+		if (!isHaveWorkspaceFolderCapability() || !ParserManager.workspacesParserInitalized) {
 			return;
 		}
 
-		this.getParser(ParserManager.workspaceRoot).setMainFile(fileName);
-	}*/
+		for (let targetParser of ParserManager.parsers.entries()) {
+			if (targetParser[1].isWorkspaceParser()) {
+				continue;
+			}
+
+			const parser: Parser | undefined = ParserManager.getParser(targetParser[0], false);
+
+			if (parser !== undefined && parser.isWorkspaceParser()) {
+				ParserManager.parsers.delete(targetParser[0]);
+			}
+		}
+	}
 }
