@@ -512,57 +512,63 @@ export class Grammar
 		let prefixLength: number;
 		let substitute: PawnSubstitute | undefined = undefined;
 		let lastNotSubstitutedText: string = "";
+		let firstSubstitute: boolean = true;
 
-		//do {
-			start = 0;
+		start = 0;
 
-			while (start < text.length) {
-				while (start < text.length && !/[a-zA-Z_@]/.test(text[start])) {
+		while (start < text.length) {
+			while (start < text.length && !/[a-zA-Z_@]/.test(text[start])) {
+				++start;
+			}
+
+			if (start >= text.length) {
+				break;
+			}
+			
+			if (start + 7 < text.length && text.substr(start, 7) == "defined" && text.charCodeAt(start + 7) <= ' '.charCodeAt(0)) {
+				start += 7;
+
+				while ((start < text.length && text.charCodeAt(start) <= ' '.charCodeAt(0)) || text[start] == '(') {
 					++start;
 				}
 
-				if (start >= text.length) {
-					break;
-				}
-				
-				if (text.substr(start, 7) == "defined" && text.charCodeAt(start + 7) <= ' '.charCodeAt(0)) {
-					start += 7;
-
-					while ((start < text.length && text.charCodeAt(start) <= ' '.charCodeAt(0)) || text[start] == '(') {
-						++start;
-					}
-
-					while (start < text.length && SYMBOL_NAME_REGEX.test(text[start])) {
-						++start;
-					}
-
-					continue;
+				while (start < text.length && SYMBOL_NAME_REGEX.test(text[start])) {
+					++start;
 				}
 
-				prefixLength = 0;
-				end = start;
-
-				while (end < text.length && SYMBOL_NAME_REGEX.test(text[end])) {
-					++prefixLength;
-					++end;
-				}
-
-				assert(prefixLength > 0);
-				const fixedText: string = text.substr(start);
-				substitute = this.substitutions.find((value: PawnSubstitute) => {
-					return this.symbolFinder(value, fixedText, -1, prefixLength);
-				});
-
-				if (substitute !== undefined) {
-					const substituted: { text: string, end: number } = this.substitutePattern(fixedText, substitute);
-
-					text = text.substring(0, start) + substituted.text + lastNotSubstitutedText;
-					lastNotSubstitutedText = text.substring(substituted.end);
-				} else {
-					start = end;
-				}
+				continue;
 			}
-		//} while (substitute !== undefined);
+
+			prefixLength = 0;
+			end = start;
+
+			while (end < text.length && SYMBOL_NAME_REGEX.test(text[end])) {
+				++prefixLength;
+				++end;
+			}
+
+			assert(prefixLength > 0);
+			const fixedText: string = text.substr(start);
+			substitute = this.substitutions.find((value: PawnSubstitute) => {
+				return this.symbolFinder(value, fixedText, -1, prefixLength);
+			});
+
+			if (substitute !== undefined) {
+				const substituted: { text: string, end: number } = this.substitutePattern(fixedText, substitute);
+
+				lastNotSubstitutedText = text.substr(start + substituted.end);
+
+				text = text.substring(0, start) + substituted.text;
+				
+				if (firstSubstitute) {
+					firstSubstitute = false;
+				} else {
+					text += lastNotSubstitutedText;
+				}
+			} else {
+				start = end;
+			}
+		}
 
 		return text;
 	}
@@ -578,7 +584,7 @@ export class Grammar
 		let argumentHave: Array<boolean> = new Array(10);
 		let length: number;
 		let inString: boolean;
-		let attachString: string = "";
+		let returnString: string = "";
 		let originalTextStart: number = -1;
 		let originalTextEnd: number = -1;
 
@@ -675,8 +681,6 @@ export class Grammar
 			}
 		}
 
-		originalTextEnd = start;
-
 		if (match && patternOffset >= substitute.pattern.length) {
 			assert(patternOffset > 0);
 
@@ -684,6 +688,8 @@ export class Grammar
 				match = false;
 			}
 		}
+
+		originalTextEnd = start;
 
 		if (match) {
 			inString = false;
@@ -695,9 +701,9 @@ export class Grammar
 					assert(argument >= 0 && argument <= 9);
 
 					if (argumentHave[argument]) {
-						attachString += args[argument];
+						returnString += args[argument];
 					} else {
-						attachString += substitute.substitution.substr(end, 2);
+						returnString += substitute.substitution.substr(end, 2);
 						start += 2;
 					}
 
@@ -707,14 +713,14 @@ export class Grammar
 						inString = !inString;
 					}
 
-					attachString += substitute.substitution.substr(end, 1);
+					returnString += substitute.substitution[end];
 				}
 			}
 
 			//attachString += text.substr(originalTextEnd);
 		}
 
-		return { text: attachString, end: originalTextEnd };
+		return { text: returnString, end: originalTextEnd };
 	}
 
 	private static isStartString(line: string): boolean {

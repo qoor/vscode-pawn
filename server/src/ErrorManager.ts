@@ -105,7 +105,7 @@ export class ErrorManager {
 			detail += "fatal error ";
 		}
 
-		detail += errorData.error_id.toString(3) + ": " + errorData.error_message.replace(/[\n]/g, '');
+		detail += errorData.error_id.toString() + ": " + errorData.error_message.replace(/[\n]/g, '');
 
 		errorData.error_detail = detail;
 	}

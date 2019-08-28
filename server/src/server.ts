@@ -1,5 +1,4 @@
 import * as path from "path";
-import * as fs from "fs";
 import {
 	createConnection,
 	ProposedFeatures,
@@ -21,7 +20,9 @@ import {
 	Hover,
 	DidChangeConfigurationParams,
 	MarkupContent,
-	MarkupKind
+	MarkupKind,
+	DidChangeConfigurationNotification,
+	DidChangeWatchedFilesNotification
 } from "vscode-languageserver";
 import { Parser } from "./Parser";
 import { uriToFilePath } from 'vscode-languageserver/lib/files';
@@ -37,13 +38,12 @@ let hasConfigurationCapability: boolean = false;
 let hasWorkspaceFolderCapability: boolean = false;
 let hasDiagnosticRelatedInformationCapability: boolean = false;
 
-interface PawnSettings {
-	compilerPath: string;
-	compileOptions: string[];
+export interface PawnSettings {
+	compiler: { path: string, options: string[] };
 	parserPath: string;
 }
 
-export let globalSettings: PawnSettings;
+export let globalSettings: PawnSettings = { compiler: { path: "", options: [] }, parserPath: "" };
 
 connection.onInitialize((params: InitializeParams) => {
 	let capabilities = params.capabilities;
@@ -62,9 +62,8 @@ connection.onInitialize((params: InitializeParams) => {
 		capabilities.textDocument!.publishDiagnostics!.relatedInformation!;
 
 	if (params.initializationOptions) {
-		globalSettings = <PawnSettings>(params.initializationOptions);
-	} else {
-		globalSettings.compileOptions = [ "-d1", "-O1", "-(", "-;" ];
+		globalSettings.compiler = params.initializationOptions.compiler;
+		globalSettings.parserPath = params.initializationOptions.parserPath;
 	}
 
 	if (hasWorkspaceFolderCapability && params.workspaceFolders !== null) {
@@ -105,6 +104,10 @@ connection.onInitialize((params: InitializeParams) => {
 
 // Not tested.
 connection.onInitialized(() => {
+	if (hasConfigurationCapability) {
+		connection.client.register(DidChangeConfigurationNotification.type);
+	}
+
 	if (hasWorkspaceFolderCapability) {
 		connection.workspace.onDidChangeWorkspaceFolders((e: WorkspaceFoldersChangeEvent) => {
 			connection.console.log("Workspace folder change event received.");
@@ -112,14 +115,23 @@ connection.onInitialized(() => {
 			ParserManager.updateWorkspacesParser(e.removed, e.added);
 		});
 	}
+
+	connection.client.register(DidChangeWatchedFilesNotification.type, undefined);
 });
 
 connection.onDidChangeConfiguration((params: DidChangeConfigurationParams) => {
-	globalSettings = <PawnSettings>(params.settings.pawn);
+	const pawnConfig = connection.workspace.getConfiguration({ section: "pawn"}).then((value) => {
+		globalSettings.compiler.path = value.compilerPath;
+		globalSettings.compiler.options = value.compileOptions;
 
-	for (let i of ParserManager.getParsersValues()) {
-		i.run();
-	}
+		for (let i = 0; i < value.compileOptions.length; ++i) {
+			connection.console.log(value.compileOptions[i]);
+		}
+
+		for (let i of ParserManager.getParsersValues()) {
+			i.run();
+		}
+	});
 });
 
 connection.onRequest("compile_request", (param: string) => {
@@ -181,11 +193,7 @@ documents.onDidSave((e: TextDocumentChangeEvent) => {
 	const parser: Parser | undefined = ParserManager.getParser(documentPath);
 
 	if (parser !== undefined) {
-		parser.run().then(() => {
-			if (parser.isWorkspaceParser()) {
-				ParserManager.updateGarbageCollect(parser);
-			}
-		});
+		parser.run();
 	}
 });
 
@@ -583,7 +591,7 @@ export function getConnection() {
 	return connection;
 }
 
-function compile(uri: string): void {
+async function compile(uri: string): Promise<void> {
 	const filePath: string = uriToFilePath(uri)!;
 	let parser: Parser | undefined = ParserManager.getParser(filePath);
 
@@ -599,11 +607,11 @@ function compile(uri: string): void {
 
 	let args: string[] = [ currentFile ];
 
-	args = args.concat(globalSettings.compileOptions!);
+	args = args.concat(globalSettings.compiler.options);
 
-	if (globalSettings.compilerPath != globalSettings.parserPath) {
-		args.push("-i" + path.join(globalSettings.compilerPath, "include") + path.sep);
-	}
+	/*if (globalSettings.compiler.path != globalSettings.parserPath) {
+		args.push("-i" + path.join(globalSettings.compiler.path, "include") + path.sep);
+	}*/
 	if (parser.isWorkspaceParser()) {
 		args.push("-i" + filePath);
 	}

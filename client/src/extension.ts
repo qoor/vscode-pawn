@@ -41,8 +41,10 @@ export function activate(context: vscode.ExtensionContext) {
 			fileEvents: vscode.workspace.createFileSystemWatcher("**/.clientrc")
 		},
 		initializationOptions: {
-			compilerPath: vscode.workspace.getConfiguration("pawn").get("compilerPath"),
-			compileOptions: vscode.workspace.getConfiguration("pawn").get("compileOptions"),
+			compiler: {
+				path: vscode.workspace.getConfiguration("pawn").get("compilerPath"),
+				options: vscode.workspace.getConfiguration("pawn").get("compileOptions")
+			},
 			parserPath: context.asAbsolutePath("bin")
 		}
 	};
@@ -136,46 +138,3 @@ function isValidCompilerPath(): boolean {
 
 	return (compilerPath.length > 0 && fs.existsSync(path.join(compilerPath, "pawncc.exe")));
 }
-
-/*function runCompile(textEditor: vscode.TextEditor) {
-	try {
-		if (textEditor.document.languageId !== "pawn") {
-			return;
-		}
-
-		if (outputChannel === undefined) {
-			outputChannel = vscode.window.createOutputChannel("PAWN Compiler");
-		}
-
-		let fileName: string = textEditor.document.fileName;
-		let compilerParams: string[] = [
-			fileName,
-			"-;",
-			"-("
-		];
-		let compiler: ChildProcess;
-
-		outputChannel.clear();
-		outputChannel.appendLine("Compiling " + fileName + "...");
-		outputChannel.appendLine('');
-
-		compiler = spawn(path.join(compilerPath, "pawncc.exe"), compilerParams, { cwd: path.dirname(fileName) });
-
-		compiler.stderr.on("data", function (data) {
-			if (data) {
-				outputChannel.append(data.toString());
-			}
-		});
-		compiler.stdout.on("data", function (data) {
-			if (data) {
-				outputChannel.append(data.toString());
-			}
-		});
-
-		outputChannel.show(vscode.ViewColumn.Three);
-	}
-	catch (e) {
-		vscode.window.showErrorMessage("PAWN Compiler loading failed.");
-		console.log(e);
-	}
-}*/

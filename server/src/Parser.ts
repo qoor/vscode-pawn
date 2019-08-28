@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { execFile, spawn } from "child_process";
+import { spawn } from "child_process";
 import { Grammar } from "./Grammar";
 import { ErrorManager, PawnError } from "./ErrorManager";
 import { ParserManager } from "./ParserManager";
@@ -81,10 +81,6 @@ export class Parser
 		this.stdoutBuffer = " ";
 		this.parserProgressCount = 0;
 		this.iAmWorkspaceParser = isWorkspaceParser;
-
-		/*if (isWorkspaceParser && this.mainPath[this.mainPath.length - 1] != path.sep) { // -i include option require path seperator at path end
-			this.mainPath += path.sep;
-		}*/
 	}
 
 	async run(): Promise<void> {
@@ -99,12 +95,13 @@ export class Parser
 		}
 
 		let args: string[] = [ (this.iAmWorkspaceParser) ? path.join(this.mainPath, this.mainFile) : this.mainPath ];
+		const pawnConfig = globalSettings.compiler;
 
-		if (globalSettings.compilerPath != globalSettings.parserPath) {
-			args.push("-i" + path.join(globalSettings.compilerPath, "include") + path.sep);
+		if (pawnConfig.path != globalSettings.parserPath) {
+			args.push("-i" + path.join(pawnConfig.path, "include") + path.sep);
 		}
-		
-		args = args.concat(globalSettings.compileOptions!);
+			
+		args = args.concat(pawnConfig.options);
 
 		/*if (this.iAmWorkspaceParser) {
 			args.push("-i" + this.mainPath + path.sep);
